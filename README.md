@@ -102,6 +102,8 @@ Copy `custom_components/virtual_garage_cover/` into your `config/custom_componen
 
 Configuration is performed entirely through the Home Assistant UI.
 
+![Configuration Flow](docs/config_flow.png)
+
 1. Navigate to **Settings > Devices & Services > Add Integration**
 2. Search for **Virtual Garage Cover**
 3. Configure:
