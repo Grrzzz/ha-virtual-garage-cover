@@ -43,21 +43,9 @@ This integration provides a standard garage door entity that behaves like a norm
 
 Use a relay (Shelly, Sonoff, ESPHome) to trigger a garage opener while exposing a proper garage door entity to Home Assistant.
 
-### MQTT-Based Garage Doors
-
-Create a garage cover that is connected to custom MQTT automations.
-
-### REST API Integration
-
-Bridge external garage door APIs into Home Assistant without writing a custom cover platform.
-
 ### Dashboard Control
 
 Expose a clean garage door card in Lovelace even if the backend system does not provide a cover entity.
-
-### Development & Testing
-
-Simulate garage doors when developing automations or custom integrations.
 
 ## How It Works
 
