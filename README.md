@@ -2,7 +2,9 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-**Create a standard Home Assistant garage door entity on top of any custom automation, script, relay, MQTT topic, or API.**
+*A virtual garage door for Home Assistant.*
+
+Create a garage door entity without requiring a physical garage door controller.
 
 ---
 
