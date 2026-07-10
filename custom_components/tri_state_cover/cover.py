@@ -201,7 +201,7 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     async def _async_options_updated(
         hass: HomeAssistant, entry: ConfigEntry
     ) -> None:
-        """Handle options update — reload the entry."""
+        """Handle options update -- reload the entry."""
         await hass.config_entries.async_reload(entry.entry_id)
 
     @property
@@ -244,10 +244,10 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
         # Determine if we need to reverse direction
         if direction_open == self._next_direction_is_open:
-            # Correct direction — single press starts
+            # Correct direction -- single press starts
             await self._press_button()
         else:
-            # Wrong direction — triple-press to reverse
+            # Wrong direction -- triple-press to reverse
             await self._triple_press()
 
         # Update state
@@ -287,10 +287,10 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         is_partial = target is not None and target not in (0, 100)
 
         if is_partial:
-            # Partial position — need to stop the motor
+            # Partial position -- need to stop the motor
             self.hass.async_create_task(self._stop_motor_and_finalize(target))
         else:
-            # Full travel — motor auto-stopped at endstop
+            # Full travel -- motor auto-stopped at endstop
             self._finalize_movement(target if target is not None else self._position)
 
     async def _stop_motor_and_finalize(self, target: float) -> None:
@@ -425,4 +425,4 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         self.async_write_ha_state()
 
     @callback
-    def _h
+    def _handle
