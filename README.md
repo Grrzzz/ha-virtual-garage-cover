@@ -62,16 +62,16 @@ Simulate garage doors when developing automations or custom integrations.
 ## How It Works
 
 ```
-Home Assistant
+Home Assistant: Automation / Script / Dashboard
  |
  v
 Virtual Garage Cover
  |
  v
-Automation / Script / MQTT / REST
+Switch Entity (with optional binary sensors)
  |
  v
-Garage Door System
+Garage Door
 ```
 
 The integration controls your garage motor through a `switch` entity. Each `switch.turn_on` simulates a button press. The motor follows a single-button cycle:
