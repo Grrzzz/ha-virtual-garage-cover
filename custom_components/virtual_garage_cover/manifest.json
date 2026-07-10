@@ -1,11 +1,13 @@
 {
   "domain": "virtual_garage_cover",
   "name": "Virtual Garage Cover",
-  "codeowners": ["@Grrzzz"],
+  "codeowners": [
+    "@Grrzzz"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/Grrzzz/ha-virtual-garage-cover",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Grrzzz/ha-virtual-garage-cover/issues",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "integration_type": "device"
 }
