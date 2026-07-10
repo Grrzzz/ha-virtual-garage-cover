@@ -1,4 +1,4 @@
-"""Cover platform for Tri-State Cover integration."""
+"""Cover platform for Virtual Garage Cover integration."""
 
 from __future__ import annotations
 
@@ -52,13 +52,13 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the Tri-State Cover from a config entry."""
+    """Set up the Virtual Garage Cover from a config entry."""
     config = {**entry.data, **entry.options}
     async_add_entities([TriStateCoverEntity(hass, entry, config)])
 
 
 class TriStateCoverEntity(CoverEntity, RestoreEntity):
-    """Representation of a Tri-State Cover."""
+    """Representation of a Virtual Garage Cover."""
 
     _attr_device_class = CoverDeviceClass.GARAGE
     _attr_supported_features = (
@@ -103,9 +103,9 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         """Return device info."""
         return {
             "identifiers": {(DOMAIN, self._switch_entity)},
-            "name": f"Tri-State Cover ({self._switch_entity})",
-            "manufacturer": "Tri-State Cover",
-            "model": "Tri-State Motor",
+            "name": f"Virtual Garage Cover ({self._switch_entity})",
+            "manufacturer": "Virtual Garage Cover",
+            "model": "Virtual Garage Cover",
         }
 
     @property

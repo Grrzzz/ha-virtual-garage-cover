@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Virtual Garage Cover einrichten",
+        "description": "Konfiguriere ein Cover fuer einen Garagentor-Motor mit Einzeltaster (Auf > Stopp > Zu > Stopp Zyklus), gesteuert ueber einen Schalter.",
+        "data": {
+          "switch_entity": "Schalter/Taster",
+          "travel_time": "Volle Fahrzeit (offen <> geschlossen)",
+          "closed_sensor": "Sensor fuer geschlossene Position (optional)",
+          "open_sensor": "Sensor fuer offene Position (optional)",
+          "toggle_delay": "Verzoegerung zwischen Tastendruecken"
+        },
+        "data_description": {
+          "switch_entity": "Der Schalter, der den Motor ansteuert. Jede Betaetigung wechselt: Auf > Stopp > Zu > Stopp.",
+          "travel_time": "Zeit in Sekunden fuer eine vollstaendige Fahrt von ganz offen nach ganz geschlossen (oder umgekehrt).",
+          "closed_sensor": "Binaersensor, der aktiv ist wenn das Cover vollstaendig geschlossen ist. Wird zur Kalibrierung der Positionsverfolgung verwendet.",
+          "open_sensor": "Binaersensor, der aktiv ist wenn das Cover vollstaendig geoeffnet ist. Wird zur Kalibrierung der Positionsverfolgung verwendet.",
+          "toggle_delay": "Verzoegerung zwischen schnellen Tastendruecken fuer Richtungsumkehr (Dreifach-Druck). Erhoehen, falls der Motor Tastendruecke verpasst."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Dieser Schalter ist bereits als Virtual Garage Cover konfiguriert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Virtual Garage Cover Optionen",
+        "data": {
+          "travel_time": "Volle Fahrzeit (offen <> geschlossen)",
+          "closed_sensor": "Sensor fuer geschlossene Position (optional)",
+          "open_sensor": "Sensor fuer offene Position (optional)",
+          "toggle_delay": "Verzoegerung zwischen Tastendruecken"
+        },
+        "data_description": {
+          "travel_time": "Zeit in Sekunden fuer eine vollstaendige Fahrt von ganz offen nach ganz geschlossen.",
+          "closed_sensor": "Binaersensor, der aktiv ist wenn das Cover vollstaendig geschlossen ist.",
+          "open_sensor": "Binaersensor, der aktiv ist wenn das Cover vollstaendig geoeffnet ist.",
+          "toggle_delay": "Verzoegerung zwischen schnellen Tastendruecken fuer Richtungsumkehr."
+        }
+      }
+    }
+  }
+}

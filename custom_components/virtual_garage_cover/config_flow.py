@@ -1,4 +1,4 @@
-"""Config flow for Tri-State Cover integration."""
+"""Config flow for Virtual Garage Cover integration."""
 
 from __future__ import annotations
 
@@ -58,8 +58,8 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-class TriStateCoverConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Tri-State Cover."""
+class VirtualGarageCoverConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Virtual Garage Cover."""
 
     VERSION = 1
 
@@ -70,12 +70,11 @@ class TriStateCoverConfigFlow(ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Check that the switch entity isn't already configured
             await self.async_set_unique_id(user_input[CONF_SWITCH_ENTITY])
             self._abort_if_unique_id_configured()
 
             return self.async_create_entry(
-                title=f"Tri-State Cover ({user_input[CONF_SWITCH_ENTITY]})",
+                title=f"Virtual Garage Cover ({user_input[CONF_SWITCH_ENTITY]})",
                 data=user_input,
             )
 
@@ -89,11 +88,11 @@ class TriStateCoverConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry):
         """Get the options flow for this handler."""
-        return TriStateCoverOptionsFlow(config_entry)
+        return VirtualGarageCoverOptionsFlow(config_entry)
 
 
-class TriStateCoverOptionsFlow(OptionsFlow):
-    """Handle options flow for Tri-State Cover."""
+class VirtualGarageCoverOptionsFlow(OptionsFlow):
+    """Handle options flow for Virtual Garage Cover."""
 
     def __init__(self, config_entry) -> None:
         """Initialize options flow."""

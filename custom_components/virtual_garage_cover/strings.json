@@ -1,0 +1,46 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Virtual Garage Cover Setup",
+        "description": "Configure a cover for a single-button garage door motor (Open > Stop > Close > Stop cycle), controlled via a switch entity.",
+        "data": {
+          "switch_entity": "Toggle switch",
+          "travel_time": "Full travel time (open <> closed)",
+          "closed_sensor": "Closed position sensor (optional)",
+          "open_sensor": "Open position sensor (optional)",
+          "toggle_delay": "Delay between button presses"
+        },
+        "data_description": {
+          "switch_entity": "The switch that controls the motor. Each activation cycles: Open > Stop > Close > Stop.",
+          "travel_time": "Time in seconds for a full travel from fully open to fully closed (or vice versa).",
+          "closed_sensor": "Binary sensor that is active when the cover is fully closed. Used to calibrate position tracking.",
+          "open_sensor": "Binary sensor that is active when the cover is fully open. Used to calibrate position tracking.",
+          "toggle_delay": "Delay between rapid button presses for direction reversal (triple-press). Increase if your motor misses presses."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This switch is already configured as a Virtual Garage Cover."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Virtual Garage Cover Options",
+        "data": {
+          "travel_time": "Full travel time (open <> closed)",
+          "closed_sensor": "Closed position sensor (optional)",
+          "open_sensor": "Open position sensor (optional)",
+          "toggle_delay": "Delay between button presses"
+        },
+        "data_description": {
+          "travel_time": "Time in seconds for a full travel from fully open to fully closed.",
+          "closed_sensor": "Binary sensor that is active when the cover is fully closed.",
+          "open_sensor": "Binary sensor that is active when the cover is fully open.",
+          "toggle_delay": "Delay between rapid button presses for direction reversal."
+        }
+      }
+    }
+  }
+}

@@ -52,7 +52,7 @@
   <rect width="900" height="620" rx="12" fill="#f8f9fa"/>
 
   <!-- Title -->
-  <text x="450" y="38" text-anchor="middle" class="title">Tri-State Cover — Architecture</text>
+  <text x="450" y="38" text-anchor="middle" class="title">Virtual Garage Cover — Architecture</text>
   <text x="450" y="56" text-anchor="middle" class="subtitle">How the integration controls your garage door</text>
 
   <!-- ═══ HARDWARE LAYER ═══ -->
@@ -62,7 +62,7 @@
   <!-- Motor Controller -->
   <rect x="340" y="120" width="220" height="56" rx="8" fill="url(#grad-orange)" filter="url(#shadow)"/>
   <text x="360" y="144" class="box-label">Garage Motor Controller</text>
-  <text x="360" y="160" class="box-detail">Tri-State: Open → Stop → Close → Stop</text>
+  <text x="360" y="160" class="box-detail">Single-Button: Open → Stop → Close → Stop</text>
 
   <!-- Switch/Relay -->
   <rect x="50" y="120" width="200" height="56" rx="8" fill="url(#grad-blue)" filter="url(#shadow)"/>
@@ -89,7 +89,7 @@
 
   <!-- Main Cover Entity -->
   <rect x="200" y="310" width="500" height="80" rx="10" fill="url(#grad-purple)" filter="url(#shadow)"/>
-  <text x="230" y="338" class="box-label" font-size="15">cover.tri_state_cover</text>
+  <text x="230" y="338" class="box-label" font-size="15">cover.virtual_garage_cover</text>
   <text x="230" y="358" class="box-detail" font-size="12">Position Tracking  ·  Direction Management  ·  Timer Control</text>
   <text x="230" y="374" class="box-detail">open_cover  |  close_cover  |  stop_cover  |  set_cover_position</text>
 
