@@ -15,6 +15,7 @@ from homeassistant.components.cover import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_ON,
     STATE_OFF,
@@ -111,7 +112,6 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     def current_cover_position(self) -> int | None:
         """Return current position of cover (0=closed, 100=open)."""
         if self._motor_state != MOTOR_STATE_IDLE:
-            # Calculate live position during movement
             return self._calculate_current_position()
         return round(self._position)
 
@@ -138,7 +138,16 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         elapsed = (
             datetime.now(timezone.utc) - self._movement_started_at
         ).total_seconds()
-        fraction = min(elapsed / self._travel_time, 1.0) if self._travel_time > 0 else 0
+        travel_distance = abs(
+            (self._target_position if self._target_position is not None
+             else (100 if self._motor_state == MOTOR_STATE_OPENING else 0))
+            - self._position_at_start
+        )
+        if travel_distance <= 0 or self._travel_time <= 0:
+            return round(self._position)
+
+        duration_for_move = (travel_distance / 100.0) * self._travel_time
+        fraction = min(elapsed / duration_for_move, 1.0)
 
         if self._motor_state == MOTOR_STATE_OPENING:
             target = self._target_position if self._target_position is not None else 100
@@ -153,6 +162,13 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
     # -- Sensor polarity helpers ------------------------------------
 
+    def _get_sensor_device_class(self, sensor_entity: str) -> str:
+        """Get the device_class of a sensor entity."""
+        state = self.hass.states.get(sensor_entity)
+        if state is None:
+            return ""
+        return state.attributes.get("device_class", "") or ""
+
     def _sensor_means_closed(self, sensor_entity: str, state_value: str) -> bool:
         """Check if the given state value means the door is at the closed endstop.
 
@@ -163,14 +179,20 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         For other sensors (plain reed switches, etc.):
             ON = sensor triggered = endstop reached.
         """
-        sensor_state = self.hass.states.get(sensor_entity)
-        device_class = ""
-        if sensor_state is not None:
-            device_class = sensor_state.attributes.get("device_class", "") or ""
-
+        device_class = self._get_sensor_device_class(sensor_entity)
         if device_class in _OPENING_DEVICE_CLASSES:
             return state_value == STATE_OFF
         return state_value == STATE_ON
+
+    def _sensor_means_not_closed(self, sensor_entity: str, state_value: str) -> bool:
+        """Check if the given state value means the door is NOT at the closed endstop.
+
+        Inverse of _sensor_means_closed.
+        """
+        device_class = self._get_sensor_device_class(sensor_entity)
+        if device_class in _OPENING_DEVICE_CLASSES:
+            return state_value == STATE_ON
+        return state_value == STATE_OFF
 
     def _sensor_means_open(self, sensor_entity: str, state_value: str) -> bool:
         """Check if the given state value means the door is at the open endstop.
@@ -182,14 +204,17 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         For other sensors (plain reed switches, etc.):
             ON = sensor triggered = endstop reached.
         """
-        sensor_state = self.hass.states.get(sensor_entity)
-        device_class = ""
-        if sensor_state is not None:
-            device_class = sensor_state.attributes.get("device_class", "") or ""
-
+        device_class = self._get_sensor_device_class(sensor_entity)
         if device_class in _OPENING_DEVICE_CLASSES:
             return state_value == STATE_ON
         return state_value == STATE_ON
+
+    def _sensor_means_not_open(self, sensor_entity: str, state_value: str) -> bool:
+        """Check if the given state value means the door is NOT at the open endstop."""
+        device_class = self._get_sensor_device_class(sensor_entity)
+        if device_class in _OPENING_DEVICE_CLASSES:
+            return state_value == STATE_OFF
+        return state_value == STATE_OFF
 
     # -- Lifecycle --------------------------------------------------
 
@@ -264,15 +289,34 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     # -- Motor control ----------------------------------------------
 
     async def _press_button(self) -> None:
-        """Press the motor toggle button once."""
+        """Press the motor toggle button once (pulse the relay).
+
+        Ensures a clean pulse by turning the switch off first if it is
+        still on from a previous press, then turning it on.
+        """
+        switch_state = self.hass.states.get(self._switch_entity)
+        if switch_state and switch_state.state == STATE_ON:
+            _LOGGER.debug(
+                "Switch %s is still ON -- turning off before pulse",
+                self._switch_entity,
+            )
+            await self.hass.services.async_call(
+                "switch",
+                SERVICE_TURN_OFF,
+                {"entity_id": self._switch_entity},
+            )
+            await asyncio.sleep(0.15)
+
         await self.hass.services.async_call(
             "switch",
             SERVICE_TURN_ON,
             {"entity_id": self._switch_entity},
         )
+        _LOGGER.debug("Button pressed (switch.turn_on %s)", self._switch_entity)
 
     async def _triple_press(self) -> None:
         """Triple-press to reverse direction: start -> stop -> reverse."""
+        _LOGGER.debug("Triple-press for direction reversal")
         await self._press_button()
         await asyncio.sleep(self._toggle_delay)
         await self._press_button()
@@ -288,14 +332,13 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
         current_pos = self._position
         if abs(current_pos - target) < 2:
-            return  # Already at target
+            _LOGGER.debug("Already at target (%.1f%% vs %.1f%%)", current_pos, target)
+            return
 
         # Determine if we need to reverse direction
         if direction_open == self._next_direction_is_open:
-            # Correct direction -- single press starts
             await self._press_button()
         else:
-            # Wrong direction -- triple-press to reverse
             await self._triple_press()
 
         # Update state
@@ -311,12 +354,13 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         travel_fraction = abs(target - current_pos) / 100.0
         duration = travel_fraction * self._travel_time
 
-        _LOGGER.debug(
-            "Starting %s from %.1f%% to %.1f%% (%.1fs)",
+        _LOGGER.info(
+            "Started %s from %.1f%% to %.1f%% (%.1fs, next_dir_was=%s)",
             self._motor_state,
             current_pos,
             target,
             duration,
+            "open" if direction_open else "close",
         )
 
         # Schedule timer to stop at target
@@ -334,11 +378,17 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
         is_partial = target is not None and target not in (0, 100)
 
+        _LOGGER.debug(
+            "Timer finished: target=%.1f%%, partial=%s, motor_state=%s",
+            target if target is not None else -1,
+            is_partial,
+            self._motor_state,
+        )
+
         if is_partial:
-            # Partial position -- need to stop the motor
             self.hass.async_create_task(self._stop_motor_and_finalize(target))
         else:
-            # Full travel -- motor auto-stopped at endstop
+            # Full travel -- motor auto-stops at endstop
             self._finalize_movement(target if target is not None else self._position)
 
     async def _stop_motor_and_finalize(self, target: float) -> None:
@@ -358,7 +408,7 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
         # Toggle direction for next press (tri-state cycle)
         self._next_direction_is_open = not self._next_direction_is_open
 
-        _LOGGER.debug(
+        _LOGGER.info(
             "Movement finished at %.1f%%, next direction: %s",
             self._position,
             "open" if self._next_direction_is_open else "close",
@@ -376,6 +426,11 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
+        _LOGGER.debug(
+            "async_open_cover called (motor_state=%s, position=%.1f%%)",
+            self._motor_state,
+            self._position,
+        )
         if self._motor_state != MOTOR_STATE_IDLE:
             await self.async_stop_cover()
             await asyncio.sleep(0.5)
@@ -387,6 +442,11 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
+        _LOGGER.debug(
+            "async_close_cover called (motor_state=%s, position=%.1f%%)",
+            self._motor_state,
+            self._position,
+        )
         if self._motor_state != MOTOR_STATE_IDLE:
             await self.async_stop_cover()
             await asyncio.sleep(0.5)
@@ -398,20 +458,29 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
+        _LOGGER.info(
+            "async_stop_cover called (motor_state=%s, position=%.1f%%, "
+            "movement_started_at=%s, target=%.1f%%)",
+            self._motor_state,
+            self._position,
+            self._movement_started_at,
+            self._target_position if self._target_position is not None else -1,
+        )
+
         if self._motor_state == MOTOR_STATE_IDLE:
-            _LOGGER.debug("Stop requested but motor is idle -- ignoring")
+            _LOGGER.info("Stop requested but motor is idle -- ignoring")
             return
 
         # Calculate current position from elapsed time
         current = self._calculate_current_position()
 
-        _LOGGER.debug(
-            "Stopping cover at calculated position %d%% (motor_state=%s)",
+        _LOGGER.info(
+            "Stopping cover at calculated position %d%% (was %s)",
             current,
             self._motor_state,
         )
 
-        # Cancel timer
+        # Cancel timer first to prevent race with _on_timer_finished
         self._cancel_timer()
 
         # Stop the motor
@@ -423,6 +492,7 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
         target = float(kwargs[ATTR_POSITION])
+        _LOGGER.debug("async_set_cover_position called: target=%.1f%%", target)
 
         if self._motor_state != MOTOR_STATE_IDLE:
             await self.async_stop_cover()
@@ -434,43 +504,91 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     # -- Sensor calibration -----------------------------------------
 
     async def _calibrate_from_sensors(self) -> None:
-        """Calibrate position from endstop sensors on startup."""
+        """Calibrate position from endstop sensors on startup.
+
+        Performs both positive and negative calibration:
+        - Positive: sensor confirms endstop -> set known position
+        - Negative: sensor contradicts current position -> correct it
+        """
         if self._closed_sensor:
             state = self.hass.states.get(self._closed_sensor)
-            if state and self._sensor_means_closed(self._closed_sensor, state.state):
-                self._position = 0.0
-                self._position_at_start = 0.0
-                self._next_direction_is_open = True
-                self._motor_state = MOTOR_STATE_IDLE
-                _LOGGER.info(
-                    "Startup calibration from closed sensor (%s=%s, "
-                    "device_class=%s): position=0%%",
-                    self._closed_sensor,
-                    state.state,
-                    state.attributes.get("device_class", "none"),
-                )
-                return
+            if state:
+                dc = state.attributes.get("device_class", "none")
+                if self._sensor_means_closed(self._closed_sensor, state.state):
+                    # Sensor confirms door is closed
+                    self._position = 0.0
+                    self._position_at_start = 0.0
+                    self._next_direction_is_open = True
+                    self._motor_state = MOTOR_STATE_IDLE
+                    _LOGGER.info(
+                        "Startup calibration: closed sensor confirms CLOSED "
+                        "(%s=%s, dc=%s) -> position=0%%",
+                        self._closed_sensor, state.state, dc,
+                    )
+                    return
+                elif self._sensor_means_not_closed(
+                    self._closed_sensor, state.state
+                ):
+                    # Sensor says door is NOT closed
+                    if self._position <= 0:
+                        # Position says closed but sensor disagrees -> fix it
+                        self._position = 100.0
+                        self._position_at_start = 100.0
+                        self._next_direction_is_open = False
+                        self._motor_state = MOTOR_STATE_IDLE
+                        _LOGGER.info(
+                            "Startup calibration: closed sensor says NOT "
+                            "CLOSED but position was 0%% (%s=%s, dc=%s) "
+                            "-> correcting to position=100%%",
+                            self._closed_sensor, state.state, dc,
+                        )
+                        return
+                    else:
+                        _LOGGER.debug(
+                            "Startup: closed sensor says NOT CLOSED, "
+                            "position=%.1f%% (consistent, no correction)",
+                            self._position,
+                        )
 
         if self._open_sensor:
             state = self.hass.states.get(self._open_sensor)
-            if state and self._sensor_means_open(self._open_sensor, state.state):
-                self._position = 100.0
-                self._position_at_start = 100.0
-                self._next_direction_is_open = False
-                self._motor_state = MOTOR_STATE_IDLE
-                _LOGGER.info(
-                    "Startup calibration from open sensor (%s=%s, "
-                    "device_class=%s): position=100%%",
-                    self._open_sensor,
-                    state.state,
-                    state.attributes.get("device_class", "none"),
-                )
-                return
+            if state:
+                dc = state.attributes.get("device_class", "none")
+                if self._sensor_means_open(self._open_sensor, state.state):
+                    self._position = 100.0
+                    self._position_at_start = 100.0
+                    self._next_direction_is_open = False
+                    self._motor_state = MOTOR_STATE_IDLE
+                    _LOGGER.info(
+                        "Startup calibration: open sensor confirms OPEN "
+                        "(%s=%s, dc=%s) -> position=100%%",
+                        self._open_sensor, state.state, dc,
+                    )
+                    return
+                elif self._sensor_means_not_open(
+                    self._open_sensor, state.state
+                ):
+                    if self._position >= 100:
+                        self._position = 0.0
+                        self._position_at_start = 0.0
+                        self._next_direction_is_open = True
+                        self._motor_state = MOTOR_STATE_IDLE
+                        _LOGGER.info(
+                            "Startup calibration: open sensor says NOT OPEN "
+                            "but position was 100%% (%s=%s, dc=%s) "
+                            "-> correcting to position=0%%",
+                            self._open_sensor, state.state, dc,
+                        )
+                        return
 
         _LOGGER.debug(
-            "No sensor calibration on startup (closed=%s, open=%s)",
-            self.hass.states.get(self._closed_sensor) if self._closed_sensor else "n/a",
-            self.hass.states.get(self._open_sensor) if self._open_sensor else "n/a",
+            "No sensor calibration change on startup "
+            "(position=%.1f%%, closed=%s, open=%s)",
+            self._position,
+            self.hass.states.get(self._closed_sensor)
+            if self._closed_sensor else "n/a",
+            self.hass.states.get(self._open_sensor)
+            if self._open_sensor else "n/a",
         )
 
     def _reset_to_position(self, position: float, next_open: bool) -> None:
@@ -495,56 +613,70 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     def _handle_closed_sensor_change(self, event: Event) -> None:
         """Handle closed sensor state change.
 
-        Respects device_class polarity:
-        - garage_door/door/opening: OFF = closed endstop
-        - other: ON = closed endstop
+        Respects device_class polarity. Also enforces the invariant:
+        if the sensor says 'not closed', the cover must not be at 0%.
         """
         new_state = event.data.get("new_state")
         if new_state is None:
             return
 
+        dc = new_state.attributes.get("device_class", "none")
+
         if self._sensor_means_closed(self._closed_sensor, new_state.state):
-            _LOGGER.debug(
-                "Closed sensor (%s) indicates door is fully closed "
-                "(state=%s, device_class=%s)",
-                self._closed_sensor,
-                new_state.state,
-                new_state.attributes.get("device_class", "none"),
+            _LOGGER.info(
+                "Closed sensor: door IS CLOSED (state=%s, dc=%s)",
+                new_state.state, dc,
             )
             self._reset_to_position(0.0, next_open=True)
-        else:
-            _LOGGER.debug(
-                "Closed sensor (%s) indicates door left closed position "
-                "(state=%s)",
-                self._closed_sensor,
-                new_state.state,
+
+        elif self._sensor_means_not_closed(
+            self._closed_sensor, new_state.state
+        ):
+            _LOGGER.info(
+                "Closed sensor: door LEFT closed position "
+                "(state=%s, dc=%s, motor_state=%s, position=%.1f%%)",
+                new_state.state, dc, self._motor_state, self._position,
             )
+            # INVARIANT: If sensor says not closed, position must not be 0%
+            if self._position <= 0 and self._motor_state == MOTOR_STATE_IDLE:
+                _LOGGER.warning(
+                    "INVARIANT FIX: Position was 0%% but sensor says not "
+                    "closed -> setting to 100%%"
+                )
+                self._reset_to_position(100.0, next_open=False)
 
     @callback
     def _handle_open_sensor_change(self, event: Event) -> None:
         """Handle open sensor state change.
 
-        Respects device_class polarity:
-        - garage_door/door/opening: ON = open endstop
-        - other: ON = open endstop
+        Respects device_class polarity. Also enforces the invariant:
+        if the sensor says 'not open', the cover must not be at 100%.
         """
         new_state = event.data.get("new_state")
         if new_state is None:
             return
 
+        dc = new_state.attributes.get("device_class", "none")
+
         if self._sensor_means_open(self._open_sensor, new_state.state):
-            _LOGGER.debug(
-                "Open sensor (%s) indicates door is fully open "
-                "(state=%s, device_class=%s)",
-                self._open_sensor,
-                new_state.state,
-                new_state.attributes.get("device_class", "none"),
+            _LOGGER.info(
+                "Open sensor: door IS OPEN (state=%s, dc=%s)",
+                new_state.state, dc,
             )
             self._reset_to_position(100.0, next_open=False)
-        else:
-            _LOGGER.debug(
-                "Open sensor (%s) indicates door left open position "
-                "(state=%s)",
-                self._open_sensor,
-                new_state.state,
+
+        elif self._sensor_means_not_open(
+            self._open_sensor, new_state.state
+        ):
+            _LOGGER.info(
+                "Open sensor: door LEFT open position "
+                "(state=%s, dc=%s, motor_state=%s, position=%.1f%%)",
+                new_state.state, dc, self._motor_state, self._position,
             )
+            # INVARIANT: If sensor says not open, position must not be 100%
+            if self._position >= 100 and self._motor_state == MOTOR_STATE_IDLE:
+                _LOGGER.warning(
+                    "INVARIANT FIX: Position was 100%% but sensor says not "
+                    "open -> setting to 0%%"
+                )
+                self._reset_to_position(0.0, next_open=True)
