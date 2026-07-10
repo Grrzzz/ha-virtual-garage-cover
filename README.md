@@ -137,10 +137,6 @@ The integration automatically detects the sensor's `device_class` and handles po
 
 No manual polarity configuration needed.
 
-## Architecture
-
-![Architecture](docs/architecture.svg)
-
 ## Who Is This For?
 
 This integration is for Home Assistant users who:
