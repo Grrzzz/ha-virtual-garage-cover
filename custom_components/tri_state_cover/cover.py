@@ -379,53 +379,50 @@ class TriStateCoverEntity(CoverEntity, RestoreEntity):
     # ── Sensor calibration ─────────────────────────────────────────
 
     async def _calibrate_from_sensors(self) -> None:
-        """Calibrate position from endstop sensors."""
+        """Calibrate position from endstop sensors on startup."""
         if self._closed_sensor:
             state = self.hass.states.get(self._closed_sensor)
             if state and state.state == STATE_ON:
                 self._position = 0.0
+                self._position_at_start = 0.0
                 self._next_direction_is_open = True
-                _LOGGER.debug("Calibrated from closed sensor: position=0")
+                self._motor_state = MOTOR_STATE_IDLE
+                _LOGGER.info("Startup calibration from closed sensor: position=0%%")
                 return
 
         if self._open_sensor:
             state = self.hass.states.get(self._open_sensor)
             if state and state.state == STATE_ON:
                 self._position = 100.0
+                self._position_at_start = 100.0
                 self._next_direction_is_open = False
-                _LOGGER.debug("Calibrated from open sensor: position=100")
+                self._motor_state = MOTOR_STATE_IDLE
+                _LOGGER.info("Startup calibration from open sensor: position=100%%")
                 return
 
+        _LOGGER.debug(
+            "No sensor calibration on startup (closed=%s, open=%s)",
+            self.hass.states.get(self._closed_sensor) if self._closed_sensor else "n/a",
+            self.hass.states.get(self._open_sensor) if self._open_sensor else "n/a",
+        )
+
+    def _reset_to_position(self, position: float, next_open: bool) -> None:
+        """Hard-reset cover state to a known position from sensor feedback."""
+        was_moving = self._motor_state != MOTOR_STATE_IDLE
+        self._cancel_timer()
+        self._position = position
+        self._motor_state = MOTOR_STATE_IDLE
+        self._target_position = None
+        self._movement_started_at = None
+        self._position_at_start = position
+        self._next_direction_is_open = next_open
+        _LOGGER.info(
+            "Sensor calibration: position=%.0f%%, was_moving=%s, next_dir=%s",
+            position,
+            was_moving,
+            "open" if next_open else "close",
+        )
+        self.async_write_ha_state()
+
     @callback
-    def _handle_closed_sensor_change(self, event: Event) -> None:
-        """Handle closed sensor state change."""
-        new_state = event.data.get("new_state")
-        if new_state is None:
-            return
-
-        if new_state.state == STATE_ON:
-            _LOGGER.debug("Closed sensor triggered — calibrating to 0%%")
-            self._cancel_timer()
-            self._position = 0.0
-            self._motor_state = MOTOR_STATE_IDLE
-            self._target_position = None
-            self._movement_started_at = None
-            self._next_direction_is_open = True
-            self.async_write_ha_state()
-
-    @callback
-    def _handle_open_sensor_change(self, event: Event) -> None:
-        """Handle open sensor state change."""
-        new_state = event.data.get("new_state")
-        if new_state is None:
-            return
-
-        if new_state.state == STATE_ON:
-            _LOGGER.debug("Open sensor triggered — calibrating to 100%%")
-            self._cancel_timer()
-            self._position = 100.0
-            self._motor_state = MOTOR_STATE_IDLE
-            self._target_position = None
-            self._movement_started_at = None
-            self._next_direction_is_open = False
-            self.async_write_ha_state()
+    def _h
