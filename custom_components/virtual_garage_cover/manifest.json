@@ -6,8 +6,7 @@
   ],
   "config_flow": true,
   "documentation": "https://github.com/Grrzzz/ha-virtual-garage-cover",
-  "iot_class": "local_push",
+  "iot_class": "assumed_state",
   "issue_tracker": "https://github.com/Grrzzz/ha-virtual-garage-cover/issues",
-  "version": "1.1.0",
-  "integration_type": "device"
+  "version": "1.1.1"
 }
